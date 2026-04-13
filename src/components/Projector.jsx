@@ -94,7 +94,10 @@ export default function Projector() {
     })
   }, [chartData, showReal, activeAccounts])
 
-  const markerPoint        = displayChartData.find(d => d.age === markerAge) ?? displayChartData[displayChartData.length - 1]
+  // displayChartData markerPoint — used for chart position and totals (already scaled)
+  const markerPoint    = displayChartData.find(d => d.age === markerAge) ?? displayChartData[displayChartData.length - 1]
+  // rawChartData markerPoint — always nominal, used for after-tax math to avoid double-scaling
+  const rawMarkerPoint = chartData.find(d => d.age === markerAge) ?? chartData[chartData.length - 1]
   const markerTotal        = showReal ? markerPoint?.totalReal : markerPoint?.totalNominal
   const totalContributions     = accountTotals.reduce((s, a) => s + a.totalContributions, 0)
   const totalAfterTaxNominal   = accountTotals.reduce((s, a) => s + a.afterTax, 0)
@@ -106,13 +109,13 @@ export default function Projector() {
   const totalGrowth     = totalRetirement - totalContributions
   const growthPct       = totalRetirement > 0 ? (totalGrowth / totalRetirement * 100).toFixed(0) : 0
 
-  // After-tax estimate at the current marker age (re-computed from markerPoint balances)
+  // After-tax estimate at the current marker age (uses raw nominal balances — scaling applied separately)
   const markerAfterTaxNominal = useMemo(() => {
-    if (!markerPoint) return 0
+    if (!rawMarkerPoint) return 0
     const yearsToMarker = Math.max(0, markerAge - currentAge)
     const { taxRate = 22, capitalGains = 15 } = settings
     return Math.round(activeAccounts.reduce((sum, a) => {
-      const projBal      = markerPoint[a.id] ?? 0
+      const projBal      = rawMarkerPoint[a.id] ?? 0
       const contribs     = a.balance + (a.monthlyContribution * 12 * yearsToMarker)
       const growth       = projBal - contribs
       const taxType      = getAccountTax(a)
@@ -122,7 +125,7 @@ export default function Projector() {
       else                             afterTax = contribs + (growth * (1 - capitalGains / 100))
       return sum + Math.max(0, afterTax)
     }, 0))
-  }, [markerPoint, markerAge, currentAge, activeAccounts, settings])
+  }, [rawMarkerPoint, markerAge, currentAge, activeAccounts, settings])
 
   const markerRealRatio  = (showReal && (markerPoint?.totalNominal ?? 0) > 0)
     ? markerPoint.totalReal / markerPoint.totalNominal
