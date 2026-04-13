@@ -83,7 +83,18 @@ export default function Projector() {
     [accounts, settings]
   )
 
-  const markerPoint        = chartData.find(d => d.age === markerAge) ?? chartData[chartData.length - 1]
+  // Scale per-account chart values by inflation factor when in real mode
+  const displayChartData = useMemo(() => {
+    if (!showReal) return chartData
+    return chartData.map(point => {
+      const ratio = point.totalNominal > 0 ? point.totalReal / point.totalNominal : 1
+      const scaled = { age: point.age, totalNominal: point.totalNominal, totalReal: point.totalReal }
+      activeAccounts.forEach(a => { scaled[a.id] = Math.round((point[a.id] ?? 0) * ratio) })
+      return scaled
+    })
+  }, [chartData, showReal, activeAccounts])
+
+  const markerPoint        = displayChartData.find(d => d.age === markerAge) ?? displayChartData[displayChartData.length - 1]
   const markerTotal        = showReal ? markerPoint?.totalReal : markerPoint?.totalNominal
   const totalContributions     = accountTotals.reduce((s, a) => s + a.totalContributions, 0)
   const totalAfterTaxNominal   = accountTotals.reduce((s, a) => s + a.afterTax, 0)
@@ -434,7 +445,7 @@ export default function Projector() {
           <div className="chart-card">
             <h2>Portfolio Growth Over Time</h2>
             <ResponsiveContainer width="100%" height={360}>
-              <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
+              <AreaChart data={displayChartData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
                 <defs>
                   {activeAccounts.map(a => {
                     const color = getAccountColor(a)
